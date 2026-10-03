@@ -28,11 +28,14 @@ TOOLS_TO_CHECK = [
     ("Tool 6", "Tool_6_inspect_geotiff_metadata.inspect_geotiff_metadata", "inspect_geotiff_metadata"),
     ("Tool 7", "Tool_7_analyze_temporal_change.analyze_temporal_change", "analyze_temporal_change"),
     ("Tool 8", "Tool_8_analyze_spatial_landcover_terrain.analyze_spatial_landcover_terrain", "analyze_spatial_landcover_terrain"),
+    ("Tool 9", "Tool_9_fetch_web_intelligence.fetch_web_intelligence", "fetch_web_intelligence"),
+    ("Tool 10", "Tool_10_spatial_geocoding_poi.spatial_geocoding_poi", "fetch_spatial_geocoding_poi"),
+    ("Tool 11", "Tool_11_deterministic_affine_markup.deterministic_affine_markup", "project_and_markup_raster"),
 ]
 
 def verify_ecosystem() -> bool:
     print("\n" + "=" * 80)
-    print("SATQUERY 8-TOOL ECOSYSTEM & FASTMCP DISCOVERY VERIFICATION")
+    print("SATQUERY 11-TOOL ECOSYSTEM & FASTMCP DISCOVERY VERIFICATION")
     print("=" * 80)
     
     all_pass = True
@@ -40,7 +43,8 @@ def verify_ecosystem() -> bool:
         try:
             mod = importlib.import_module(mod_path)
             assert hasattr(mod, core_func), f"{name} missing core function '{core_func}'"
-            assert hasattr(mod, "mcp"), f"{name} missing FastMCP instance 'mcp'"
+            has_mcp = hasattr(mod, "mcp") or hasattr(mod, "mcp_tool")
+            assert has_mcp, f"{name} missing FastMCP instance ('mcp' or 'mcp_tool')"
             print(f"  [PASS] {name:<8} | Module: {mod_path:<65} | Func: {core_func} | FastMCP: OK")
         except Exception as e:
             print(f"  [FAIL] {name:<8} | Module: {mod_path:<65} | Error: {e}")
@@ -60,7 +64,7 @@ def verify_ecosystem() -> bool:
 
     print("=" * 80)
     if all_pass:
-        print("[SUCCESS] ALL 8 TOOLS & ORCHESTRATION ENGINES ARE FULLY OPERATIONAL!\n")
+        print("[SUCCESS] ALL 11 TOOLS & ORCHESTRATION ENGINES ARE FULLY OPERATIONAL!\n")
     else:
         print("[FAILURE] ONE OR MORE MODULES FAILED VERIFICATION.\n")
     return all_pass

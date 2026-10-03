@@ -39,7 +39,7 @@ NDVI for this GeoTIFF"*, and SatQuery:
 
 There are three ways to run it: a **web UI** (React), a **REST API** (FastAPI), and a
 **Model Context Protocol (MCP) server** for Claude Desktop / other MCP clients. All
-three sit on top of the same 8 science tools and the same LangGraph orchestrator.
+three sit on top of the same 11 science tools and the same LangGraph orchestrator.
 
 Everything that could change between machines or deployments — which LLM to use, which
 vision model to use, API keys, ports, CORS origins, output directories — is an
@@ -54,7 +54,7 @@ environment variable with a documented default. Nothing is hardcoded.
 3. [Model roles: what LLMs and VLMs are supported](#3-model-roles-what-llms-and-vlms-are-supported)
 4. [Configuration reference (every env var, every default)](#4-configuration-reference-every-env-var-every-default)
 5. [Repository map](#5-repository-map)
-6. [The 8 science tools + the vision tools](#6-the-8-science-tools--the-vision-tools)
+6. [The 11 science tools + the vision tools](#6-the-11-science-tools--the-vision-tools)
 7. [Multi-tool missions (Pipelines A/B/C)](#7-multi-tool-missions-pipelines-abc)
 8. [HTTP API reference](#8-http-api-reference)
 9. [The frontend (chat UI)](#9-the-frontend-chat-ui)
@@ -91,30 +91,30 @@ environment variable with a documented default. Nothing is hardcoded.
 │      • Vision-tool role   — analyze_imagery_vlm, called like any other tool  │
 │                              to interpret a rendered image. openai | local   │
 │                                                                              │
-│  backend/tools/executor.py — dispatches to the 8 science tools below, the   │
+│  backend/tools/executor.py — dispatches to the 11 science tools below, the  │
 │                               vision tool, and the 3 mission pipelines       │
-└───────┬───────────┬───────────┬───────────┬─────────────────────┬──────────┘
-        │           │           │           │                     │
-        ▼           ▼           ▼           ▼                     ▼
-   Tool_1..3    Tool_4       Tool_5..8   backend/vision/     backend/rendering/
-   (Sentinel    (Open-Meteo  (offline    (OpenAI vision API  raster_preview.py
-   Hub API)     ERA5, no     NumPy /     OR HTTP call to     (GeoTIFF → PNG,
-                API key)     rasterio)   local_model_server) shared by vision
-                                              │               tool + UI viewer)
-                                              ▼
-                                  ┌───────────────────────────┐
-                                  │  local_model_server/       │
-                                  │  (separate FastAPI service,│
-                                  │  optional Docker Compose   │
-                                  │  profile "local-models")   │
-                                  │  Serves InternVL-1B OR     │
-                                  │  EarthMind-4B via           │
-                                  │  transformers, port 8080   │
-                                  └───────────────────────────┘
+└───────┬───────────┬───────────┬───────────┬──────────────┬──────────────┬────┘
+        │           │           │           │              │              │
+        ▼           ▼           ▼           ▼              ▼              ▼
+   Tool_1..3    Tool_4       Tool_5..8   Tool_9..11     backend/vision/ backend/rendering/
+   (Sentinel    (Open-Meteo  (offline    (Web Intel,    (OpenAI vision  raster_preview.py
+   Hub API)     ERA5, no     NumPy /     POI, Affine    API OR HTTP     (GeoTIFF → PNG,
+                API key)     rasterio)   Math engines)  to local VLM)   shared viewer)
+                                                               │
+                                                               ▼
+                                                   ┌───────────────────────────┐
+                                                   │  local_model_server/       │
+                                                   │  (separate FastAPI service,│
+                                                   │  optional Docker Compose   │
+                                                   │  profile "local-models")   │
+                                                   │  Serves InternVL-1B OR     │
+                                                   │  EarthMind-4B via          │
+                                                   │  transformers, port 8080   │
+                                                   └───────────────────────────┘
 ```
 
 Three independent containers (backend, frontend, and the optional local-model
-sidecar) plus a completely offline half of the science tools (5–8 never touch the
+sidecar) plus a completely offline core of the science tools (5–8 and 11 never touch the
 network) is the whole system. Nothing about which LLM/VLM is active changes any of
 this — it's all env-var configuration read once at process startup.
 
@@ -318,8 +318,9 @@ real file.**
 | `SENTINEL_CLIENT_ID` | *(empty)* | OAuth2 client ID from [Sentinel Hub](https://apps.sentinel-hub.com/dashboard/) or [Copernicus Data Space](https://dataspace.copernicus.eu/). |
 | `SENTINEL_CLIENT_SECRET` | *(empty)* | Matching OAuth2 secret. |
 
-Tools 4–8 need **no credentials at all** (Tool 4 is Open-Meteo's free public API; Tools
-5–8 are pure offline computation).
+Tools 4–8 and 11 need **no credentials at all** (Tool 4 is Open-Meteo's free public API; Tools
+5–8 and 11 are pure offline computation; Tools 9–10 include automated keyless fallbacks
+to DuckDuckGo and OpenStreetMap).
 
 ### 4.2 Orchestrator role
 
@@ -1053,7 +1054,7 @@ while for EarthMind-4B (~15 GB).
 ```bash
 python scripts/run_phase2.py
 ```
-Runs all 8 tools' synthetic integration tests plus all 3 pipelines end-to-end against
+Runs all 11 tools' synthetic integration tests plus all 3 pipelines end-to-end against
 bundled sample rasters — a good smoke test that the install itself is healthy before
 you touch any live credentials.
 
