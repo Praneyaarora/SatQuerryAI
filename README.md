@@ -1122,3 +1122,114 @@ dive on the ingest/query graph internals), [local_model_server/README.md](local_
 (local VLM hardware/setup details), `docs/SatQuery_Orchestration_Guide.pdf` (walkthrough),
 and each `Tool_N_.../README_Tool_N_....md` for that tool's full scientific formulas and
 sample I/O.
+
+---
+
+## 14. Complete System Setup & Local Deployment Guide
+
+Follow this guide to run the full SatQuery AI stack on your own machine, combining our **fine-tuned satellite Vision-Language Model on local GPU**, the **FastAPI agentic backend**, and the **interactive React frontend**.
+
+### 14.1 Foundation Models & Fine-Tuned LoRA Checkpoints
+
+SatQuery utilizes a fine-tuned multimodal adaptation of InternVL 3.5 for satellite grounding, land-use classification, and bounding box markups:
+
+| Component | Repository / Source | Description |
+| :--- | :--- | :--- |
+| **Base Foundation VLM** | [`OpenGVLab/InternVL3_5-1B-Instruct`](https://huggingface.co/OpenGVLab/InternVL3_5-1B-Instruct) | 1B lightweight vision-language base model (supports dynamic high-resolution patching). |
+| **Fine-Tuned LoRA Adapter** | [`Praneyaarora/satquery-internvl35-1b-epoch2-lora`](https://huggingface.co/Praneyaarora/satquery-internvl35-1b-epoch2-lora) | Stage-2 SFT 2-Epoch LoRA checkpoint trained specifically on remote-sensing imagery and spatial grounding. |
+| **Bundled Repository Weights** | [`./lora_adapters/satquery-internvl35-1b-epoch2-lora`](lora_adapters/satquery-internvl35-1b-epoch2-lora) | Local weights included directly in this repository for offline deployment. |
+
+#### Python Code to Load the Base Model + LoRA Adapter Directly:
+```python
+import torch
+from transformers import AutoModel, AutoTokenizer
+from peft import PeftModel
+
+# 1. Load Base Model and Tokenizer
+base_model_id = "OpenGVLab/InternVL3_5-1B-Instruct"  # or local path to downloaded base weights
+tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True, use_fast=False)
+model = AutoModel.from_pretrained(
+    base_model_id,
+    trust_remote_code=True,
+    torch_dtype=torch.bfloat16,
+    low_cpu_mem_usage=True
+).eval().cuda()
+
+# 2. Attach Fine-Tuned Satellite LoRA Adapter
+lora_path = "Praneyaarora/satquery-internvl35-1b-epoch2-lora"  # or "./lora_adapters/satquery-internvl35-1b-epoch2-lora"
+model.language_model = PeftModel.from_pretrained(model.language_model, lora_path).eval()
+
+print("SatQuery Fine-Tuned VLM Ready on GPU!")
+```
+
+---
+
+### 14.2 API Keys & Environment Configuration
+
+Copy the template to create your `.env` file:
+```bash
+cp .env.example .env
+```
+
+| Environment Variable | Where & How to Get It | Free Tier / Notes |
+| :--- | :--- | :--- |
+| `SENTINEL_CLIENT_ID`<br>`SENTINEL_CLIENT_SECRET` | 1. Sign up at [Sentinel Hub Dashboard](https://apps.sentinel-hub.com/dashboard/#/account/settings) or [Copernicus Data Space](https://dataspace.copernicus.eu/).<br>2. Navigate to **User Settings** &rarr; **OAuth Clients** &rarr; **Create New OAuth Client**.<br>3. Copy the generated Client ID and Client Secret. | Free tier available with monthly quotas for Sentinel-1/2/3 imagery. |
+| `SATQUERY_ORCHESTRATOR_API_KEY` | 1. Create a free account at [OpenRouter.ai](https://openrouter.ai/).<br>2. Go to **Keys** &rarr; **Create Key**.<br>3. Paste the key into `SATQUERY_ORCHESTRATOR_API_KEY`. | Free models like `nvidia/nemotron-3-super-120b-a12b:free` require no credit card. |
+| `TAVILY_API_KEY` | 1. Sign up at [Tavily AI](https://app.tavily.com/).<br>2. Copy your API Key from the dashboard. | Free tier gives 1,000 search API credits per month (DuckDuckGo acts as zero-key fallback). |
+| `LOCATIONIQ_API_KEY` | 1. Register at [LocationIQ](https://locationiq.com/).<br>2. Copy your Access Token. | Free tier includes 5,000 geocoding requests daily (Nominatim acts as fallback). |
+
+---
+
+### 14.3 Step-by-Step Terminal Execution Guide
+
+Open **3 separate terminal windows** to run the complete local stack:
+
+#### **Terminal 1: Fine-Tuned VLM Inference Server (Port 8080, GPU Accelerated)**
+From the repository root:
+```bash
+# Windows (PowerShell):
+$env:LOCAL_VLM_MODEL_ID="internvl-1b"
+$env:LOCAL_VLM_HF_REPO="OpenGVLab/InternVL3_5-1B-Instruct"
+$env:LOCAL_VLM_LORA_PATH="./lora_adapters/satquery-internvl35-1b-epoch2-lora"
+$env:LOCAL_VLM_DEVICE="cuda"
+$env:LOCAL_VLM_PORT="8080"
+python -m uvicorn local_model_server.server:app --host 127.0.0.1 --port 8080
+
+# Linux / macOS:
+export LOCAL_VLM_MODEL_ID="internvl-1b"
+export LOCAL_VLM_HF_REPO="OpenGVLab/InternVL3_5-1B-Instruct"
+export LOCAL_VLM_LORA_PATH="./lora_adapters/satquery-internvl35-1b-epoch2-lora"
+export LOCAL_VLM_DEVICE="auto"
+export LOCAL_VLM_PORT="8080"
+python -m uvicorn local_model_server.server:app --host 127.0.0.1 --port 8080
+```
+> Verify server status at `http://127.0.0.1:8080/health`.
+
+---
+
+#### **Terminal 2: SatQuery FastAPI Backend (Port 8000)**
+From the repository root:
+```bash
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Start backend server
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+> Interactive API Swagger Documentation will be accessible at `http://127.0.0.1:8000/docs`.
+
+---
+
+#### **Terminal 3: React / Vite Frontend (Port 3000)**
+From the repository root:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+> Access the SatQuery AI Interactive Workspace at **`http://localhost:3000`**.
+

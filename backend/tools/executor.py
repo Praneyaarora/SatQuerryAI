@@ -686,6 +686,24 @@ def _run_vlm_analysis(args: dict[str, Any]) -> dict[str, Any]:
                     image_path, geo_fields["region_bbox"], bool(polygon),
                 )
 
+                if geo_fields.get("region_centroid") and Path(image_path).suffix.lower() in (".tif", ".tiff"):
+                    try:
+                        from Tool_11_deterministic_affine_markup.deterministic_affine_markup import (
+                            FeatureItem,
+                            project_and_markup_raster,
+                        )
+                        centroid = geo_fields["region_centroid"]
+                        cleaned_label = query.split("?")[0].replace("mark the", "").replace("mark", "").replace("locate the", "").replace("in this image", "").strip() or "Marked Region"
+                        markup_res = project_and_markup_raster({
+                            "geotiff_path": image_path,
+                            "features": [FeatureItem(name=cleaned_label.title(), latitude=centroid["latitude"], longitude=centroid["longitude"])],
+                        })
+                        if markup_res.get("marked_image_path"):
+                            result["marked_image_path"] = markup_res["marked_image_path"]
+                            logger.info("[VISION MARKUP] Generated %s", result["marked_image_path"])
+                    except Exception as m_exc:
+                        logger.debug("Auto markup generation failed: %s", m_exc)
+
         return {"status": "success", **result}
 
     except Exception as exc:

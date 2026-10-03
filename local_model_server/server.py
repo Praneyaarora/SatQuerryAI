@@ -52,10 +52,19 @@ def _load_model() -> None:
         )
 
     device, dtype = resolve_device_and_dtype(os.getenv("LOCAL_VLM_DEVICE", "auto"))
-    logger.info("Loading %s (%s) on %s ...", model_id, repo_id, device)
+    lora_path = os.getenv("LOCAL_VLM_LORA_PATH")
+    logger.info(
+        "Loading %s (%s) on %s (LoRA: %s) ...",
+        model_id,
+        repo_id,
+        device,
+        lora_path or "none",
+    )
 
-    adapter_cls = EarthMindAdapter if model_id == "earthmind-4b" else InternVLAdapter
-    _state["adapter"] = adapter_cls(repo_id, device, dtype)
+    if model_id == "earthmind-4b":
+        _state["adapter"] = EarthMindAdapter(repo_id, device, dtype)
+    else:
+        _state["adapter"] = InternVLAdapter(repo_id, device, dtype, lora_path=lora_path)
     _state["model_id"] = model_id
     logger.info("Model %s ready.", model_id)
 
@@ -76,9 +85,17 @@ class InferRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
+    import torch
+    lora_path = os.getenv("LOCAL_VLM_LORA_PATH")
+    repo_id = os.getenv("LOCAL_VLM_HF_REPO") or _MODEL_REPOS.get(_state["model_id"])
     return {
         "status": "ok" if _state["adapter"] is not None else "loading",
         "model": _state["model_id"],
+        "base_model": repo_id,
+        "lora_adapter": lora_path or "none",
+        "device": getattr(_state["adapter"], "device", "unknown") if _state["adapter"] else "unknown",
+        "cuda_available": torch.cuda.is_available(),
+        "adapter_loaded": _state["adapter"] is not None,
     }
 
 

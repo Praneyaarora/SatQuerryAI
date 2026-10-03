@@ -280,9 +280,15 @@ def respond(state: SatQueryState) -> dict[str, Any]:
     if action == "clarify":
         reason = (planned.get("reason") or "").strip()
         logger.info("[ORCHESTRATOR DECISION] status=clarify reason=%r", reason)
+        clarify_msg = reason or "Could you clarify what you'd like me to do?"
+        init_desc = state.get("initial_description")
+        if init_desc:
+            final_answer = f"{init_desc}\n\nNote: {clarify_msg}"
+        else:
+            final_answer = clarify_msg
         return {
             "status": "clarify",
-            "final_answer": reason or "Could you clarify what you'd like me to do?",
+            "final_answer": final_answer,
             "execution_trace": [
                 trace_entry("respond", "clarify")
             ],

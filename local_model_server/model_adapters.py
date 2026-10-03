@@ -129,7 +129,14 @@ def load_image_tensor(image: Image.Image, input_size: int = 448, max_num: int = 
 class InternVLAdapter:
     """Loads any InternVL-chat-family model via transformers + trust_remote_code."""
 
-    def __init__(self, repo_id: str, device: str, dtype: torch.dtype) -> None:
+    def __init__(
+        self,
+        repo_id: str,
+        device: str,
+        dtype: torch.dtype,
+        lora_path: str | None = None,
+    ) -> None:
+        import os
         from transformers import AutoModel, AutoTokenizer
 
         self.device = device
@@ -141,6 +148,23 @@ class InternVLAdapter:
         self.tokenizer = AutoTokenizer.from_pretrained(
             repo_id, trust_remote_code=True, use_fast=False
         )
+
+        active_lora = lora_path or os.getenv("LOCAL_VLM_LORA_PATH")
+        if active_lora:
+            try:
+                from peft import PeftModel
+
+                print(f"[LOCAL VLM] Loading fine-tuned LoRA adapter from {active_lora} ...")
+                if hasattr(self.model, "language_model"):
+                    self.model.language_model = PeftModel.from_pretrained(
+                        self.model.language_model, active_lora
+                    )
+                else:
+                    self.model = PeftModel.from_pretrained(self.model, active_lora)
+                self.model.eval()
+                print(f"[LOCAL VLM] Fine-tuned LoRA adapter loaded successfully.")
+            except Exception as exc:
+                print(f"[LOCAL VLM] Warning: could not load LoRA adapter via peft ({exc!r})")
 
     def generate(self, image: Image.Image, query: str) -> str:
         pixel_values = load_image_tensor(image).to(self.device)

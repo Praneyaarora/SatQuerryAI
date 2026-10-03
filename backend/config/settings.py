@@ -73,10 +73,12 @@ class Settings:
     memory_embed_model: str = "openai:text-embedding-3-small"
 
     # --- Orchestrator role ---
-    orchestrator_provider: str = "mock"  # mock | openai | anthropic
-    orchestrator_model: str = "gpt-5.2"
+    orchestrator_provider: str = "openai"  # openai | mock | anthropic
+    orchestrator_model: str = "gpt-4o"
     orchestrator_api_key: str | None = None
     orchestrator_base_url: str | None = None
+    orchestrator_max_tokens: int = 3000
+    orchestrator_timeout_s: float = 60.0
     orchestrator_synthesize_answer: bool = True
 
     # --- Vision tool role ---
@@ -94,7 +96,7 @@ class Settings:
 
 def load_settings() -> Settings:
     orchestrator_provider = (
-        _clean_str(os.getenv("SATQUERY_ORCHESTRATOR_PROVIDER")) or "mock"
+        _clean_str(os.getenv("SATQUERY_ORCHESTRATOR_PROVIDER")) or "openai"
     ).lower()
     if orchestrator_provider not in {"mock", "openai", "anthropic"}:
         raise ValueError(
@@ -128,9 +130,15 @@ def load_settings() -> Settings:
 
     return Settings(
         orchestrator_provider=orchestrator_provider,
-        orchestrator_model=_clean_str(os.getenv("SATQUERY_ORCHESTRATOR_MODEL")) or "gpt-5.2",
+        orchestrator_model=_clean_str(os.getenv("SATQUERY_ORCHESTRATOR_MODEL")) or "gpt-4o",
         orchestrator_api_key=orchestrator_api_key,
         orchestrator_base_url=_clean_str(os.getenv("SATQUERY_ORCHESTRATOR_BASE_URL")),
+        orchestrator_max_tokens=int(
+            _clean_str(os.getenv("SATQUERY_ORCHESTRATOR_MAX_TOKENS")) or "3000"
+        ),
+        orchestrator_timeout_s=float(
+            _clean_str(os.getenv("SATQUERY_ORCHESTRATOR_TIMEOUT_S")) or "60"
+        ),
         orchestrator_synthesize_answer=_as_bool(
             os.getenv("SATQUERY_ORCHESTRATOR_SYNTHESIZE_ANSWER"), True
         ),
